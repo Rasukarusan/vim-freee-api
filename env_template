@@ -1,0 +1,3 @@
+let g:TOKEN = ''
+let g:COMPANY_ID = ''
+let g:EMP_ID = ''
