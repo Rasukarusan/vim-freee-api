@@ -25,7 +25,7 @@ function! s:create_border_window(config) abort
   return nvim_open_win(buffer, v:true, a:config)
 endfunction
 
-function! s:new_border_window(config, field, today, timer) abort
+function! s:new_border_window(config, field, today) abort
   let border_window_id = s:create_border_window(a:config)
   let contents_window_id = s:create_contents_window(a:config, a:field)
   let date = a:field[0]
@@ -43,7 +43,7 @@ endfunction
 function! CreateDays(timer) abort
   let rect = { 'width': 20, 'height': 3, 'col': 50, 'row': 10 }
   for day in ['日','月','火','水','木','金','土']
-    call timer_start(0, function('s:new_border_window', [s:create_config(rect), [day], 0]), { 'repeat':1 })
+    call s:new_border_window(s:create_config(rect), [day], 0)
     let rect.col += rect.width - 1
   endfor
 endfunction
@@ -51,8 +51,8 @@ endfunction
 function! CreateCalender(timer) abort
   let col = 50
   let rect = { 'width': 20, 'height': 10, 'col': col, 'row': 12 }
-  " let dates = [29,30,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,1,2]
-  let dates = [29,30,1,2,3,4,5] + [6,7,8,26,10,11]
+  let dates = [29,30,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,1,2]
+  " let dates = [29,30,1,2,3,4,5] + [6,7,8,9,10,11]
   let works = GetWork()
   let time_clock = GetTimeClock()
 
@@ -65,16 +65,17 @@ function! CreateCalender(timer) abort
     if time_clock.date == date
       let label = time_clock.label
     endif
-    let field = 
-      \ [printf('%d', date )] 
+    let field =
+      \ [printf('%d', date )]
       \ + ['']
       \ + [works[date]]
-      \ + ['']
       \ + [label]
       \ + ['']
-    call timer_start(1, function('s:new_border_window', [s:create_config(rect), field, time_clock.date]), { 'repeat':1 })
+    call s:new_border_window(s:create_config(rect), field, time_clock.date)
     let rect.col += rect.width - 1
   endfor
+  let clipboard =  s:winid2tabnr(g:win_ids[0])
+  execute clipboard . 'windo :'
 endfunction
 
 function! Main()
@@ -107,10 +108,10 @@ function! GetTimeClock() abort
   let type = ''
   let date = system("gdate '+%-d' -d" . json.base_date . '| tr -d "\n"')
   if match(available_types, 'clock_in') != -1 " 未出勤の場合
-    let label = '出勤する'
+    let label = '   出勤する'
     let type = 'clock_in'
   elseif match(available_types, 'clock_out') != -1 " 出勤済みの場合
-    let label = '退勤する'
+    let label = '   退勤する'
     let type = 'clock_out'
   else
   endif
@@ -119,25 +120,21 @@ endfunction
 
 function! PostWork() abort
   let line = getline('.')
-  let action = line == '出勤する' ?
-        \ {'type': 'clock_in', 'msg': '出勤しました'} :
-        \ {'type': 'clock_out', 'msg': '退勤しました'}
-  let cmd = 'curl -s -X POST "https://api.freee.co.jp/hr/api/v1/employees/'.g:EMP_ID.'/time_clocks" -H "accept: application/json" -H "Authorization: Bearer '.g:TOKEN.'" -H "Content-Type: application/json" -d "{ \"company_id\": '.g:COMPANY_ID.', \"type\": \"'.action.type.'\"}"'
+  let action = line == '   出勤する' ?
+        \ {'type': 'clock_in', 'msg': '  出勤しました'} :
+        \ {'type': 'clock_out', 'msg': '  退勤しました'}
+  let cmd = 'curl -s -X POST "https://api.freee.co.jp/hr/api/v1/employees/'.g:EMP_ID.'/time_clocks" -H "accept: application/json" -H "Authorization: Bearer '.g:TOKEN.'" -H "Content-Type: application/json" -d "{ \"company_id\": '.g:COMPANY_ID.', \"type\": \"'.action['type'].'\"}"'
   let json = json_decode(system(cmd))
   echo json
   let date = system("gdate '+%-d' -d" . json.employee_time_clock.date . '| tr -d "\n"')
   let time = system("gdate '+%H:%M' -d" . json.employee_time_clock.datetime . '| tr -d "\n"')
-  let field = 
-    \ [date] 
+  let field =
+    \ [date]
     \ + ['']
     \ + ['     '. time]
     \ + ['']
     \ + [action.msg]
   call nvim_buf_set_lines(0, 0, -1, v:true, field)
-endfunction
-
-function Random(max) abort
-  return str2nr(matchstr(reltimestr(reltime()), '\v\.@<=\d+')[1:]) % a:max
 endfunction
 
 set winhl=Normal:Floating
